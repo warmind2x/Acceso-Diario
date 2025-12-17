@@ -1,95 +1,143 @@
 <template>
-  <div
-    class="grid grid-cols-1 md:grid-cols-5 gap-4 p-6 grid-rows-[auto_auto_1fr_auto]"
-  >
-    <!-- TIMELINE -->
-    <div class="col-span-5 flex justify-center">
-      <div
-        class="w-full max-w-7xl border-2 border-gray-700 p-8 rounded-xl shadow-lg"
-      >
-        <UTimeline
-          orientation="horizontal"
-          v-model="value"
-          :items="items"
-          size="3xl"
-          class="w-full"
-        />
-      </div>
-    </div>
+  <div class="min-h-screen bg-linear-to-b from-slate-950 to-slate-900 p-4">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+      <!-- TIMELINE -->
+      <section class="lg:col-span-5">
+        <UCard class="shadow-xl">
+          <UTimeline
+            orientation="horizontal"
+            v-model="value"
+            :items="items"
+            size="3xl"
+            class="w-full"
+          />
+        </UCard>
+      </section>
 
-    <!-- VISITAS DIARIAS -->
-    <div class="row-start-2 row-span-1 self-start">
-      <UCard class="w-auto">
-        <template #header>
-          <h1 class="text-lg font-semibold">VISITAS DIARIAS</h1>
-        </template>
+      <!-- UPLOAD -->
+      <section class="lg:col-span-1 self-start">
+        <UCard>
+          <template #header>
+            <h2 class="text-lg font-semibold">Visitas Diarias</h2>
+          </template>
 
-        <div class="flex justify-center">
           <UFileUpload
             v-model="visitasDiarias"
-            class="w-96 min-h-48"
+            class="w-full min-h-48"
             accept=".xlsx"
-            label="Arrastre y suelte el archivo aquí o haga clic"
-            description=".xlsx (Plantilla visitas diarias)"
+            label="Arrastre o haga clic"
+            description=".xlsx (plantilla oficial)"
             @change="() => (isvisitasDiariasUP = false)"
           />
-        </div>
 
-        <template #footer>
-          <div class="flex justify-end gap-2">
+          <template #footer>
+            <div class="flex justify-between gap-2">
+              <UButton
+                color="primary"
+                label="Subir"
+                block
+                @click="uploadVisitas"
+                :disabled="isvisitasDiariasUP"
+              />
+              <UButton
+                color="neutral"
+                label="Reset"
+                variant="soft"
+                block
+                @click="resetVisitas"
+              />
+            </div>
+          </template>
+        </UCard>
+      </section>
+
+      <!-- TABLA CON SCROLL -->
+      <section class="lg:col-span-3 row-span-2 h-[70vh] min-h-0">
+        <UCard class="h-full flex flex-col min-h-0">
+          <div class="pb-2 text-sm font-semibold text-gray-300">Visitantes</div>
+
+          <div class="flex-1 min-h-0 overflow-auto">
+            <UTable :data="visitantes" />
+          </div>
+        </UCard>
+      </section>
+
+      <!-- APROBADOR / FECHAS -->
+      <section class="lg:col-span-1 self-start">
+        <UCard>
+          <template #header>
+            <h2 class="text-lg font-semibold">Aprobador</h2>
+          </template>
+
+          <div class="grid gap-4">
+            <UFormField label="Seleccionar">
+              <USelect v-model="app1" :items="aprobadores" />
+            </UFormField>
+
+            <UFormField label="Hora de entrada">
+              <UInputTime :default-value="entradaD" :hour-cycle="24" disabled />
+            </UFormField>
+
+            <UFormField label="Hora de salida">
+              <UInputTime :default-value="salidaD" :hour-cycle="24" disabled />
+            </UFormField>
+
+            <UFormField label="Fecha de visita">
+              <UInputDate v-model="fecha" disabled />
+            </UFormField>
+
             <UButton
               color="primary"
-              label="Subir"
-              @click="uploadVisitas"
-              :disabled="isvisitasDiariasUP"
+              size="lg"
+              block
+              icon="i-lucide-send"
+              label="Enviar solicitud"
+              @click="sendServer"
             />
-            <UButton color="neutral" label="Reset" @click="resetVisitas" />
           </div>
-        </template>
-      </UCard>
+        </UCard>
+      </section>
     </div>
-
-    <!-- TABLA (ÚNICO DIV QUE CRECE) -->
-    <div
-      class="col-span-3 row-start-2 row-span-2 border-2 border-gray-700 p-4 rounded-lg h-full overflow-auto"
-    >
-      <UTable :data="visitantes" class="pt-4" />
-    </div>
-
-    <!-- APROBADOR -->
-    <div
-      class="col-start-5 row-start-2 row-span-1 border-2 border-gray-700 p-4 rounded-lg self-start"
-    >
-      <UContainer class="grid gap-4">
-        <UFormField label="Aprobador">
-          <USelect v-model="app1" :items="aprobadores" />
-        </UFormField>
-
-        <UButton
-          color="primary"
-          label="Subir Visitas Diarias"
-          @click="sendServer"
-          :disabled="subirVisitasDiarias"
-        />
-      </UContainer>
-    </div>
-
-    <!-- FOOTER / PLACEHOLDERS -->
-    <div class="col-span-2 row-start-4">5</div>
-
-    <div class="col-span-3 col-start-3 row-start-4">6</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TimelineItem } from "@nuxt/ui";
+import { Time } from "@internationalized/date";
+import { parseDate, CalendarDate } from "@internationalized/date";
 
-const visitasDiarias = ref(null);
+/* =========================
+ * STATE PRINCIPAL
+ * ========================= */
+
+// Archivo cargado
+const visitasDiarias = ref<File | null>(null);
+
+// Flags de control UI
 const isvisitasDiariasUP = ref(true);
 const subirVisitasDiarias = ref(true);
-const value = ref(0);
 
-// Constantes
+// Paso actual del timeline
+const value = ref<number>(0);
+
+// Timeout para avanzar el timeline
+const stepdelay = ref<number | null>(null);
+
+// Datos de la visita (UI trabaja con Date)
+const entrada = ref<Date | null>(null);
+const salida = ref<Date | null>(null);
+const fecha = ref<CalendarDate | null>(null);
+const entradaD = shallowRef(new Time(8, 0, 0));
+const salidaD = shallowRef(new Time(18, 0, 0));
+
+// Datos generales
+const visitantes = ref<any[]>([]);
+const url = ref<string>("");
+
+/* =========================
+ * CONSTANTES
+ * ========================= */
+
 const aprobadores = [
   "Abraham Guajardo",
   "Agustin Lutterbach",
@@ -168,6 +216,11 @@ const aprobadores = [
   "Wehendy Maciel",
   "Ximena Pizarro",
 ];
+
+// Aprobador seleccionado
+const app1 = ref<string>(aprobadores[0]);
+
+// Timeline
 const items = ref<TimelineItem[]>([
   {
     title: "Carga Plantilla",
@@ -176,54 +229,97 @@ const items = ref<TimelineItem[]>([
   },
   {
     title: "Verificación Datos",
-    description: "Verifica los datos cargados.",
+    description: "Verifica los datos cargados",
     icon: "i-lucide-check-square",
   },
   {
-    title: "Solicitar autorizacion",
-    description: "Selecciona el aprobador de la visita. y envia solicitud.",
+    title: "Solicitar autorización",
+    description: "Selecciona el aprobador y envía solicitud",
     icon: "i-lucide-send",
   },
 ]);
 
-//Variables
-const app1 = ref(aprobadores[0]);
-const visitantes = ref([]);
-const url = ref("");
+/* =========================
+ * HELPERS
+ * ========================= */
+
+// Convierte "HH:mm" → Date
+function parseTime(time: string): Date {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+/* =========================
+ * ACTIONS
+ * ========================= */
 
 async function uploadVisitas() {
-  // Logic to handle file upload
+  if (!visitasDiarias.value) return;
+
   const formData = new FormData();
   formData.append("file", visitasDiarias.value);
   formData.append("approver", app1.value);
+
   try {
-    const response = await $fetch("/api/visitas", {
+    const response: any = await $fetch("/api/visitas", {
       method: "POST",
       body: formData,
     });
-    console.log("File uploaded successfully:", response);
+
+    // Estado UI
     isvisitasDiariasUP.value = true;
+    subirVisitasDiarias.value = false;
     visitasDiarias.value = null;
+
+    // Datos recibidos
     visitantes.value = response.visitors;
     url.value = response.url;
-    subirVisitasDiarias.value = false;
+
+    // Conversión correcta para inputs
+    entrada.value = parseTime(response.inHour);
+    salida.value = parseTime(response.outHour);
+    fecha.value = response.date ? parseDate(response.date) : null;
+    console.log(fecha.value);
+
+    // Avanza el timeline
+    value.value = response.step;
+
+    // Auto avance al paso final
+    stepdelay.value = window.setTimeout(() => {
+      value.value = 2;
+    }, 5000);
   } catch (error) {
     console.error("Error uploading file:", error);
   }
 }
 
 async function sendServer() {
-  const formData = new FormData();
-  formData.append("url", url.value);
+  const payload = {
+    url: url.value,
+    approver: app1.value,
+    inHour: entrada.value?.toISOString(),
+    outHour: salida.value?.toISOString(),
+    date: fecha.value?.toISOString(),
+  };
+
   const data = await $fetch("/api/sendData", {
     method: "POST",
-    body: formData,
+    body: payload,
   });
-  console.log("Data sent to server:", data);
+
+  console.log("Data sent to server:", payload);
 }
 
 function resetVisitas() {
   visitasDiarias.value = null;
-  console.log("CN41N file input reset");
+  visitantes.value = [];
+  value.value = 0;
+
+  if (stepdelay.value) {
+    clearTimeout(stepdelay.value);
+    stepdelay.value = null;
+  }
 }
 </script>

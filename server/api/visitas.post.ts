@@ -15,16 +15,6 @@ const baseUrl = "http://10.107.194.70/rrhh/visitas/asset/php/put_reg.php";
 export default defineEventHandler(async (event) => {
   const form = await readMultipartFormData(event);
   const file = form?.find((f) => f.name === "file");
-  const approverField = form?.find((f) => f.name === "approver");
-  const approver = approverField?.data?.toString() || "";
-
-  // Actualizar aprobador en datos fijos
-  if (approver) {
-    FIXED.appr1 = approver;
-  }
-  console.log(approver);
-
-  // Agregar aprobador a los datos fijos si existe
 
   if (!file) throw createError({ statusCode: 400, statusMessage: "No file" });
 
@@ -154,7 +144,10 @@ export default defineEventHandler(async (event) => {
 
   return {
     url: url.toString(),
-    approver: FIXED.appr1,
+    step: 1,
+    inHour: dynamicParams.col23,
+    outHour: dynamicParams.col24,
+    date: dynamicParams.col22,
     visitors: visitors.map((v, i) => ({
       Visitante: i + 1,
       Nombre: v.name,

@@ -1,12 +1,18 @@
 export default defineEventHandler(async (event) => {
-  const form = await readMultipartFormData(event);
-  const urlraw = form?.find((f) => f.name === "url");
-  const url = urlraw?.data?.toString() || "";
+  const body = await readBody(event);
 
-  if (!url)
-    throw createError({ statusCode: 400, statusMessage: "No url provided" });
+  const parsedUrl = new URL(body.url);
+  const params = Object.fromEntries(parsedUrl.searchParams.entries());
+  console.log(params);
 
-  const response = await $fetch(url);
+  params.appr1 = body.approver || "";
 
-  return response;
+  const newQuery = new URLSearchParams(params).toString();
+  const finalUrl = `${parsedUrl.origin}${parsedUrl.pathname}?${newQuery}`;
+
+  const response = await $fetch(finalUrl);
+
+  console.log(finalUrl);
+
+  return finalUrl;
 });
