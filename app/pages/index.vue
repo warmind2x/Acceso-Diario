@@ -301,7 +301,7 @@ async function sendServer() {
     approver: app1.value,
     inHour: entrada.value?.toISOString(),
     outHour: salida.value?.toISOString(),
-    date: fecha.value?.toISOString(),
+    date: fecha.value?.toString(),
   };
 
   const data = await $fetch("/api/sendData", {

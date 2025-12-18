@@ -1,8 +1,10 @@
+<script setup lang="ts"></script>
+
 <template>
   <UApp>
     <UHeader>
       <template #left>
-        <H1>Utility Visitas</H1>
+        <GoodyearLogo />
       </template>
     </UHeader>
     <UMain><NuxtPage /></UMain>
