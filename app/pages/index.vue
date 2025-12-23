@@ -31,21 +31,33 @@
           />
 
           <template #footer>
-            <div class="flex justify-between gap-2">
+            <div class="flex items-center justify-between gap-2">
+              <!-- Acción principal -->
               <UButton
                 color="primary"
                 label="Subir"
-                block
                 @click="uploadVisitas"
                 :disabled="isvisitasDiariasUP"
               />
-              <UButton
-                color="neutral"
-                label="Reset"
-                variant="soft"
-                block
-                @click="resetVisitas"
-              />
+
+              <!-- Acciones secundarias -->
+              <div class="flex gap-2">
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  label="Reset"
+                  @click="resetVisitas"
+                />
+
+                <UButton
+                  color="neutral"
+                  size="sm"
+                  variant="soft"
+                  icon="i-lucide-download"
+                  label="Plantilla"
+                  @click="downloadTemplate"
+                />
+              </div>
             </div>
           </template>
         </UCard>
@@ -105,6 +117,7 @@
 import type { TimelineItem } from "@nuxt/ui";
 import { Time } from "@internationalized/date";
 import { parseDate, CalendarDate } from "@internationalized/date";
+const toast = useToast();
 
 /* =========================
  * STATE PRINCIPAL
@@ -251,6 +264,17 @@ function parseTime(time: string): Date {
   return d;
 }
 
+useHead({
+  title: "Gestor de Visitas Diarias",
+  meta: [
+    {
+      name: "description",
+      content:
+        "Aplicación para gestionar visitas diarias mediante carga de plantillas y solicitudes de aprobación.",
+    },
+  ],
+});
+
 /* =========================
  * ACTIONS
  * ========================= */
@@ -309,7 +333,11 @@ async function sendServer() {
     body: payload,
   });
 
-  console.log("Data sent to server:", payload);
+  toast.add({
+    title: "Acceso Solicitado",
+    description: `Accesos solicitados correctamente al aprobador ${app1.value}.`,
+    icon: "i-lucide-calendar-days",
+  });
 }
 
 function resetVisitas() {
@@ -321,5 +349,14 @@ function resetVisitas() {
     clearTimeout(stepdelay.value);
     stepdelay.value = null;
   }
+}
+
+function downloadTemplate() {
+  const link = document.createElement("a");
+  link.href = "/plantilla-visitas.xlsx";
+  link.download = "plantilla-visitas.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 </script>
