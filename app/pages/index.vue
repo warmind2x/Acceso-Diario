@@ -258,9 +258,11 @@ const items = ref<TimelineItem[]>([
 
 // Convierte "HH:mm" → Date
 function parseTime(time: string): Date {
-  const [h, m] = time.split(":").map(Number);
+  const [hRaw, mRaw] = time.split(":");
+  const h = Number(hRaw);
+  const m = Number(mRaw);
   const d = new Date();
-  d.setHours(h, m, 0, 0);
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
   return d;
 }
 
@@ -305,7 +307,7 @@ async function uploadVisitas() {
     entrada.value = parseTime(response.inHour);
     salida.value = parseTime(response.outHour);
     fecha.value = response.date ? parseDate(response.date) : null;
-    console.log(fecha.value);
+    console.log(response.date);
 
     // Avanza el timeline
     value.value = response.step;
@@ -338,6 +340,7 @@ async function sendServer() {
     description: `Accesos solicitados correctamente al aprobador ${app1.value}.`,
     icon: "i-lucide-calendar-days",
   });
+  resetVisitas();
 }
 
 function resetVisitas() {

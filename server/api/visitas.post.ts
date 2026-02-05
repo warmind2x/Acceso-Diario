@@ -57,20 +57,18 @@ export default defineEventHandler(async (event) => {
       // Caso 1: la celda viene como string dd-mm-yyyy
       if (typeof cell === "string" && /^\d{2}-\d{2}-\d{4}$/.test(cell.trim())) {
         const [d, m, y] = cell.trim().split("-");
-        col22Value = `${y}-${m}-${d}`;
+        col22Value = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
         console.log("STRING:", col22Value);
         return;
       }
 
       // Caso 2: ExcelJS la convirtió a Date
       if (cell instanceof Date) {
-        console.log(cell);
+        const y = cell.getFullYear();
+        const m = String(cell.getMonth() + 1).padStart(2, "0");
+        const d = String(cell.getDate()).padStart(2, "0");
 
-        const y = String(cell.getFullYear());
-        const m = String(cell.getMonth() + 1);
-        const d = String(cell.getDate() + 1);
-
-        col22Value = y + "-" + m + "-" + d;
+        col22Value = `${y}-${m}-${d}`;
         console.log("DATE:", col22Value);
         return;
       }
@@ -124,11 +122,11 @@ export default defineEventHandler(async (event) => {
   const url = new URL(baseUrl);
 
   Object.entries(FIXED).forEach(([k, v]) =>
-    url.searchParams.append(k, String(v))
+    url.searchParams.append(k, String(v)),
   );
 
   Object.entries(dynamicParams).forEach(([k, v]) =>
-    url.searchParams.append(k, String(v))
+    url.searchParams.append(k, String(v)),
   );
 
   function getCellValue(cell: any) {
