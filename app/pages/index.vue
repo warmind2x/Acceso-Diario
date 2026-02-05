@@ -347,6 +347,7 @@ function resetVisitas() {
   visitasDiarias.value = null;
   visitantes.value = [];
   value.value = 0;
+  fecha.value = null;
 
   if (stepdelay.value) {
     clearTimeout(stepdelay.value);
