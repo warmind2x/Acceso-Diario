@@ -1,6 +1,8 @@
 import ExcelJS from "exceljs";
 
-// Datos fijos
+// =======================
+// DATOS FIJOS
+// =======================
 const FIXED = {
   col10: "Jhonnathan Garban-CONT",
   col11: "ZA51560",
@@ -12,11 +14,57 @@ const FIXED = {
 
 const baseUrl = "http://10.107.194.70/rrhh/visitas/asset/php/put_reg.php";
 
+// =======================
+// HELPERS
+// =======================
+
+// Convierte CUALQUIER fecha de Excel a ISO YYYY-MM-DD (sin timezone bugs)
+function excelDateToISO(value: any): string | null {
+  // Excel serial number
+  if (typeof value === "number") {
+    const d = ExcelJS.DateUtils.excelToJsDate(value);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
+      2,
+      "0",
+    )}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  // Date (forzar UTC)
+  if (value instanceof Date) {
+    return `${value.getUTCFullYear()}-${String(
+      value.getUTCMonth() + 1,
+    ).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  // String DD-MM-YYYY
+  if (typeof value === "string" && /^\d{2}-\d{2}-\d{4}$/.test(value.trim())) {
+    const [d, m, y] = value.trim().split("-");
+    return `${y}-${m}-${d}`;
+  }
+
+  return null;
+}
+
+function getCellValue(cell: any) {
+  if (!cell) return "";
+
+  if (typeof cell === "object" && cell.formula !== undefined) {
+    return cell.result ?? "";
+  }
+
+  return cell ?? "";
+}
+
+// =======================
+// HANDLER
+// =======================
 export default defineEventHandler(async (event) => {
   const form = await readMultipartFormData(event);
   const file = form?.find((f) => f.name === "file");
 
-  if (!file) throw createError({ statusCode: 400, statusMessage: "No file" });
+  if (!file) {
+    throw createError({ statusCode: 400, statusMessage: "No file" });
+  }
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(new Uint8Array(file.data).buffer);
@@ -33,53 +81,47 @@ export default defineEventHandler(async (event) => {
 
     const v = row.values as any[];
 
-    const name = getCellValue(v[2]) + " " + getCellValue(v[3]);
+    const name = `${getCellValue(v[2])} ${getCellValue(v[3])}`.trim();
     const rut = getCellValue(v[4]);
     const empresa = getCellValue(v[5]);
     const cargo = getCellValue(v[6]);
 
     if (!name && !rut && !empresa && !cargo) return;
 
-    // --- Guardar visitantes ---
     visitors.push({ name, rut, empresa, cargo });
 
-    // --- col19: concatenado de v[7] ---
+    // col19
     if (v[7]) col19List.push(String(v[7]).trim());
 
-    // --- col21: primer valor v[8] ---
-    if (!col21Value && v[8]) col21Value = String(v[8]).trim();
+    // col21 (primer valor)
+    if (!col21Value && v[8]) {
+      col21Value = String(v[8]).trim();
+    }
 
-    // --- col22: primer valor v[9] convertida a AAAA-MM-DD ---
-
+    // col22 (fecha, solo una vez)
     if (!col22Value) {
-      const cell = row.getCell(9).value;
+      const rawCell = row.getCell(9).value;
+      const value =
+        typeof rawCell === "object" && rawCell?.result
+          ? rawCell.result
+          : rawCell;
 
-      // Caso 1: la celda viene como string dd-mm-yyyy
-      if (typeof cell === "string" && /^\d{2}-\d{2}-\d{4}$/.test(cell.trim())) {
-        const [d, m, y] = cell.trim().split("-");
-        col22Value = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-        console.log("STRING:", col22Value);
-        return;
+      const iso = excelDateToISO(value);
+
+      if (iso) {
+        col22Value = iso;
+        console.log("FECHA OK:", iso);
+      } else {
+        console.warn("Fecha no reconocida:", rawCell);
       }
-
-      // Caso 2: ExcelJS la convirtió a Date
-      if (cell instanceof Date) {
-        const y = cell.getFullYear();
-        const m = String(cell.getMonth() + 1).padStart(2, "0");
-        const d = String(cell.getDate()).padStart(2, "0");
-
-        col22Value = `${y}-${m}-${d}`;
-        console.log("DATE:", col22Value);
-        return;
-      }
-
-      console.log("No reconocido:", cell);
     }
   });
 
+  // =======================
+  // PARAMETROS DINAMICOS
+  // =======================
   const dynamicParams: Record<string, string> = {};
 
-  // --- Primer registro: va a col15–col18 ---
   if (visitors.length > 0) {
     const first = visitors[0];
     dynamicParams.col15 = first.name;
@@ -90,27 +132,18 @@ export default defineEventHandler(async (event) => {
 
   dynamicParams.total = String(visitors.length - 1);
 
-  // --- Resto de los visitantes van como nam110+ ---
   let index = 110;
-
   for (let i = 1; i < visitors.length; i++) {
-    const person = visitors[i];
-
-    dynamicParams[`nam${index}`] = person.name;
-    dynamicParams[`nam${index + 1}`] = person.rut;
-    dynamicParams[`nam${index + 2}`] = person.empresa;
-    dynamicParams[`nam${index + 3}`] = person.cargo;
-
+    const p = visitors[i];
+    dynamicParams[`nam${index}`] = p.name;
+    dynamicParams[`nam${index + 1}`] = p.rut;
+    dynamicParams[`nam${index + 2}`] = p.empresa;
+    dynamicParams[`nam${index + 3}`] = p.cargo;
     index += 10;
   }
 
-  // ✔ col19 concatenado con //
   dynamicParams.col19 = col19List.join("//");
-
-  // ✔ col21 tomado del primer registro v[8]
   dynamicParams.col21 = col21Value || "";
-
-  // ✔ col22 tomado del primer v[9] y formateado
   dynamicParams.col22 = col22Value || "";
   dynamicParams.col23 = "08:00";
   dynamicParams.col24 = "17:00";
@@ -118,27 +151,16 @@ export default defineEventHandler(async (event) => {
   dynamicParams.col26 = "Si";
   dynamicParams.col27 = "";
 
-  // Construcción final del URL
+  // =======================
+  // URL FINAL
+  // =======================
   const url = new URL(baseUrl);
 
-  Object.entries(FIXED).forEach(([k, v]) =>
-    url.searchParams.append(k, String(v)),
-  );
+  Object.entries(FIXED).forEach(([k, v]) => url.searchParams.append(k, v));
 
   Object.entries(dynamicParams).forEach(([k, v]) =>
-    url.searchParams.append(k, String(v)),
+    url.searchParams.append(k, v),
   );
-
-  function getCellValue(cell: any) {
-    if (!cell) return "";
-
-    // Caso fórmula: usar result si existe
-    if (typeof cell === "object" && cell.formula !== undefined) {
-      return cell.result ?? "";
-    }
-
-    return cell ?? "";
-  }
 
   return {
     url: url.toString(),
